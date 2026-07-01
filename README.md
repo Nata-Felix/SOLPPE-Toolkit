@@ -27,5 +27,3 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\gui\build.ps1
 ```
 
 O build gera `SOLPPE_toolkit.exe` e `SOLPPE_updater.exe` na raiz do repositório.
-
-Os executáveis e pacotes exclusivos do instalador TekFarma permanecem separados no repositório original.
