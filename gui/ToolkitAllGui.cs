@@ -16,8 +16,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("SOLPPE_toolkit")]
 [assembly: AssemblyCompany("SOLPPE")]
 [assembly: AssemblyCopyright("Copyright Natã 2026")]
-[assembly: AssemblyVersion("1.0.6.0")]
-[assembly: AssemblyFileVersion("1.0.6.0")]
+[assembly: AssemblyVersion("1.0.7.0")]
+[assembly: AssemblyFileVersion("1.0.7.0")]
 
 namespace ToolkitAll
 {
@@ -35,7 +35,7 @@ namespace ToolkitAll
 
     internal sealed class SupportForm : Form
     {
-        private const string AppVersion = "1.0.6";
+        private const string AppVersion = "1.0.7";
         private const string Version = "v1.0";
         private const string DriversVersion = "drivers-impressoras-v1";
         private const string Repo = "Nata-Felix/SOLPPE-Toolkit";
@@ -2435,11 +2435,62 @@ namespace ToolkitAll
             command.AppendLine("$ErrorActionPreference = 'Continue'");
             command.AppendLine("$printers = " + BuildPowerShellArray(plan.PrintersToRemove));
             command.AppendLine("$drivers = " + BuildPowerShellArray(plan.PrinterDriversToRemove));
+            command.AppendLine("function Test-ToolkitServiceStatus([string]$Name,[string]$Expected,[int]$TimeoutSeconds) {");
+            command.AppendLine("  $limit = (Get-Date).AddSeconds($TimeoutSeconds)");
+            command.AppendLine("  do {");
+            command.AppendLine("    $service = Get-Service -Name $Name -ErrorAction SilentlyContinue");
+            command.AppendLine("    if ($null -eq $service) { return $false }");
+            command.AppendLine("    if ([string]$service.Status -ieq $Expected) { return $true }");
+            command.AppendLine("    Start-Sleep -Milliseconds 250");
+            command.AppendLine("  } while ((Get-Date) -lt $limit)");
+            command.AppendLine("  return $false");
+            command.AppendLine("}");
+            command.AppendLine("function Invoke-ToolkitProcessWithTimeout([string]$File,[string]$Arguments,[int]$TimeoutSeconds) {");
+            command.AppendLine("  $psi = New-Object System.Diagnostics.ProcessStartInfo");
+            command.AppendLine("  $psi.FileName = $File; $psi.Arguments = $Arguments; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true");
+            command.AppendLine("  $process = New-Object System.Diagnostics.Process; $process.StartInfo = $psi");
+            command.AppendLine("  try {");
+            command.AppendLine("    [void]$process.Start()");
+            command.AppendLine("    if (!$process.WaitForExit($TimeoutSeconds * 1000)) {");
+            command.AppendLine("      try { $process.Kill(); [void]$process.WaitForExit(2000) } catch { }");
+            command.AppendLine("      return [pscustomobject]@{ ExitCode = 124; TimedOut = $true }");
+            command.AppendLine("    }");
+            command.AppendLine("    return [pscustomobject]@{ ExitCode = $process.ExitCode; TimedOut = $false }");
+            command.AppendLine("  } catch {");
+            command.AppendLine("    [Console]::Out.WriteLine('[AVISO] Falha ao executar ' + $File + ': ' + $_.Exception.Message)");
+            command.AppendLine("    return [pscustomobject]@{ ExitCode = 1; TimedOut = $false }");
+            command.AppendLine("  } finally { if ($process) { $process.Dispose() } }");
+            command.AppendLine("}");
+            command.AppendLine("function Stop-ToolkitSpooler {");
+            command.AppendLine("  if (Test-ToolkitServiceStatus 'Spooler' 'Stopped' 0) { [Console]::Out.WriteLine('Spooler ja estava parado.'); return $true }");
+            command.AppendLine("  [Console]::Out.WriteLine('Parando spooler (limite de 10 segundos)...')");
+            command.AppendLine("  $result = Invoke-ToolkitProcessWithTimeout 'sc.exe' 'stop Spooler' 10");
+            command.AppendLine("  if ($result.TimedOut) { [Console]::Out.WriteLine('[AVISO] Parada normal do spooler excedeu o limite.') }");
+            command.AppendLine("  if (Test-ToolkitServiceStatus 'Spooler' 'Stopped' 5) { [Console]::Out.WriteLine('Spooler parado.'); return $true }");
+            command.AppendLine("  [Console]::Out.WriteLine('[AVISO] Tentando encerramento forcado do spooler...')");
+            command.AppendLine("  $forced = Invoke-ToolkitProcessWithTimeout 'taskkill.exe' '/F /FI \"SERVICES eq Spooler\"' 8");
+            command.AppendLine("  if ($forced.TimedOut) { [Console]::Out.WriteLine('[AVISO] Parada forcada do spooler excedeu o limite.') }");
+            command.AppendLine("  if (Test-ToolkitServiceStatus 'Spooler' 'Stopped' 5) { [Console]::Out.WriteLine('Spooler parado apos tentativa forcada.'); return $true }");
+            command.AppendLine("  [Console]::Out.WriteLine('[AVISO] Nao foi possivel parar o spooler; o fluxo continuara.')");
+            command.AppendLine("  return $false");
+            command.AppendLine("}");
+            command.AppendLine("function Start-ToolkitSpooler {");
+            command.AppendLine("  if (Test-ToolkitServiceStatus 'Spooler' 'Running' 0) { [Console]::Out.WriteLine('Spooler ja esta em execucao.'); return $true }");
+            command.AppendLine("  [Console]::Out.WriteLine('Iniciando spooler (limite de 10 segundos)...')");
+            command.AppendLine("  $result = Invoke-ToolkitProcessWithTimeout 'sc.exe' 'start Spooler' 10");
+            command.AppendLine("  if ($result.TimedOut) { [Console]::Out.WriteLine('[AVISO] Inicio do spooler excedeu o limite.') }");
+            command.AppendLine("  if (Test-ToolkitServiceStatus 'Spooler' 'Running' 8) { [Console]::Out.WriteLine('Spooler iniciado.'); return $true }");
+            command.AppendLine("  [Console]::Out.WriteLine('[AVISO] Nao foi possivel iniciar o spooler; o fluxo continuara.')");
+            command.AppendLine("  return $false");
+            command.AppendLine("}");
             command.AppendLine("function Reset-ToolkitSpooler {");
-            command.AppendLine("  Stop-Service -Name Spooler -Force -ErrorAction SilentlyContinue");
-            command.AppendLine("  $queue = Join-Path $env:SystemRoot 'System32\\spool\\PRINTERS\\*'");
-            command.AppendLine("  Remove-Item -Path $queue -Force -ErrorAction SilentlyContinue");
-            command.AppendLine("  Start-Service -Name Spooler -ErrorAction SilentlyContinue");
+            command.AppendLine("  $stopped = Stop-ToolkitSpooler");
+            command.AppendLine("  if ($stopped) {");
+            command.AppendLine("    $queue = Join-Path $env:SystemRoot 'System32\\spool\\PRINTERS\\*'");
+            command.AppendLine("    Remove-Item -Path $queue -Force -ErrorAction SilentlyContinue");
+            command.AppendLine("  } else { [Console]::Out.WriteLine('[AVISO] Limpeza da fila ignorada porque o spooler nao parou.') }");
+            command.AppendLine("  $started = Start-ToolkitSpooler");
+            command.AppendLine("  if (!$stopped -or !$started) { [Console]::Out.WriteLine('[AVISO] Reset do spooler concluido parcialmente.') }");
             command.AppendLine("}");
             command.AppendLine("foreach ($name in $printers) {");
             command.AppendLine("  try {");

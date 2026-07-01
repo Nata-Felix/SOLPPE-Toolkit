@@ -63,6 +63,8 @@ No Windows:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\gui\build.ps1
 ```
 
+O build gera `SOLPPE_toolkit.exe` e `SOLPPE_updater.exe` na raiz do repositório.
+
 ## Segurança operacional
 
 Algumas ações alteram configurações administrativas do Windows. O operador deve revisar as opções selecionadas e confirmar que elas são adequadas ao ambiente antes da execução.
