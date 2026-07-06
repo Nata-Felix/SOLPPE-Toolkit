@@ -18,6 +18,10 @@ Os executáveis oficiais são publicados em [Releases](https://github.com/Nata-F
 - Release `v1.0`: dependências utilizadas pelas ações do toolkit.
 - Release `drivers-impressoras-v1`: catálogo e pacotes de drivers.
 
+## Impressoras
+
+A ação `Insert no registro` aplica e valida as correções de registro para os erros de impressão `0x0000011b`, `0x000003e3` e `0x0000007c`. A execução exige privilégios administrativos e recomenda reiniciar o Windows ao concluir.
+
 ## Compilação
 
 No Windows, execute:
