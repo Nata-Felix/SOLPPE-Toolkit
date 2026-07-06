@@ -55,6 +55,10 @@ Os executáveis oficiais ficam em [Releases](https://github.com/Nata-Felix/SOLPP
 - `SOLPPE_toolkit.exe`: aplicativo principal.
 - `SOLPPE_updater.exe`: atualizador automático.
 
+## Impressoras
+
+A ação `Insert no registro` aplica e valida as correções de registro para os erros de impressão `0x0000011b`, `0x000003e3` e `0x0000007c`. A execução exige privilégios administrativos e recomenda reiniciar o Windows ao concluir.
+
 ## Compilação
 
 No Windows:

@@ -16,8 +16,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("SOLPPE_toolkit")]
 [assembly: AssemblyCompany("SOLPPE")]
 [assembly: AssemblyCopyright("Copyright Natã 2026")]
-[assembly: AssemblyVersion("1.0.7.0")]
-[assembly: AssemblyFileVersion("1.0.7.0")]
+[assembly: AssemblyVersion("1.0.8.0")]
+[assembly: AssemblyFileVersion("1.0.8.0")]
 
 namespace ToolkitAll
 {
@@ -35,7 +35,7 @@ namespace ToolkitAll
 
     internal sealed class SupportForm : Form
     {
-        private const string AppVersion = "1.0.7";
+        private const string AppVersion = "1.0.8";
         private const string Version = "v1.0";
         private const string DriversVersion = "drivers-impressoras-v1";
         private const string Repo = "Nata-Felix/SOLPPE-Toolkit";
@@ -810,6 +810,7 @@ namespace ToolkitAll
                 }
             };
             AddAction(actionsPanel, "impressorapdf", "Instalar impressora PDF", "Ativa o recurso nativo Microsoft Print to PDF e recria a impressora quando necessario.", ref y);
+            AddAction(actionsPanel, "insertregistroimpressora", "Insert no registro", "Insere as correcoes de registro para os erros 0x0000011b, 0x000003e3 e 0x0000007c.", ref y);
             removeDriversActionOption = AddAction(actionsPanel, "removerdrivers", "Remover Drivers", "Seleciona e remove impressoras e drivers instalados sem exigir uma nova instalacao.", ref y);
             removeDriversActionOption.CheckBox.CheckedChanged += delegate
             {
@@ -1739,6 +1740,7 @@ namespace ToolkitAll
                 String.Equals(id, "teamviewer", StringComparison.OrdinalIgnoreCase) ||
                 String.Equals(id, "hamachi", StringComparison.OrdinalIgnoreCase) ||
                 String.Equals(id, "impressorapdf", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(id, "insertregistroimpressora", StringComparison.OrdinalIgnoreCase) ||
                 String.Equals(id, "removerdrivers", StringComparison.OrdinalIgnoreCase);
         }
 
@@ -1820,6 +1822,13 @@ namespace ToolkitAll
             if (plan.ContainsAction("impressorapdf"))
             {
                 InstallMicrosoftPrintToPdf(bg);
+                completedUnits++;
+                if (cancelRequested) return;
+            }
+
+            if (plan.ContainsAction("insertregistroimpressora"))
+            {
+                InsertPrinterRegistryEntries(bg);
                 completedUnits++;
                 if (cancelRequested) return;
             }
@@ -2549,6 +2558,31 @@ namespace ToolkitAll
             command.AppendLine("  Add-Printer -Name 'Microsoft Print to PDF' -DriverName $driver.Name -PortName 'PORTPROMPT:' -ErrorAction Stop");
             command.AppendLine("  Write-Output 'Microsoft Print to PDF instalada.'");
             command.AppendLine("} else { Write-Output 'Microsoft Print to PDF ja esta instalada.' }");
+            return command.ToString();
+        }
+
+        private void InsertPrinterRegistryEntries(BackgroundWorker bg)
+        {
+            RunLocalPowerShellAction("Inserindo correcoes no registro...", BuildPrinterRegistryScript(), bg);
+        }
+
+        private string BuildPrinterRegistryScript()
+        {
+            StringBuilder command = new StringBuilder();
+            command.AppendLine("$ErrorActionPreference = 'Stop'");
+            command.AppendLine("function Set-ToolkitPrinterDword([string]$Path,[string]$Name,[int]$Value) {");
+            command.AppendLine("  if (!(Test-Path -LiteralPath $Path)) { New-Item -Path $Path -Force | Out-Null }");
+            command.AppendLine("  New-ItemProperty -LiteralPath $Path -Name $Name -PropertyType DWord -Value $Value -Force | Out-Null");
+            command.AppendLine("  $actual = (Get-ItemProperty -LiteralPath $Path -Name $Name -ErrorAction Stop).$Name");
+            command.AppendLine("  if ([int]$actual -ne $Value) { throw ('Falha ao validar ' + $Path + '\\' + $Name) }");
+            command.AppendLine("  Write-Output ('[OK] Registro aplicado: ' + $Path + '\\' + $Name + '=' + $Value)");
+            command.AppendLine("}");
+            command.AppendLine("$printPath = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Print'");
+            command.AppendLine("Set-ToolkitPrinterDword $printPath 'RpcAuthnLevelPrivacyEnabled' 0");
+            command.AppendLine("$overridePath = 'HKLM:\\SYSTEM\\CurrentControlSet\\Policies\\Microsoft\\FeatureManagement\\Overrides'");
+            command.AppendLine("foreach ($name in @('713073804','3598754956','1921033356')) { Set-ToolkitPrinterDword $overridePath $name 0 }");
+            command.AppendLine("Write-Output 'Correcoes de registro para impressoras inseridas e validadas com sucesso.'");
+            command.AppendLine("Write-Output '[INFO] Reinicie o Windows para garantir que todas as alteracoes sejam aplicadas.'");
             return command.ToString();
         }
 
